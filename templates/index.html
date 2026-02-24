@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🖐️ Sign Language Translator</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+body { font-family: Arial; background:#f0f4f8; margin:0; }
+.card { max-width:600px; margin:40px auto; background:white; padding:20px; border-radius:12px; box-shadow:0 4px 8px rgba(0,0,0,0.1);}
+.tabs button { padding:10px 16px; border:none; background:#eee; cursor:pointer; border-radius:6px;}
+.tabs .active { background:#d01b69; color:white;}
+.section { margin-top:20px; }
+.hidden { display:none; }
+#dropZone { border:2px dashed #bbb; padding:20px; text-align:center; border-radius:6px; background:#fafafa; cursor:pointer;}
+#predictBtn { margin-top:20px; padding:10px 20px; background:#41a458; color:white; border:none; border-radius:6px; cursor:pointer;}
+.output { margin-top:20px; }
+#result { font-size:18px; font-weight:bold; }
+</style>
+</head>
+
+<body>
+
+<div class="card">
+<h1>🖐️ Sign Language Translator</h1>
+<p>Upload a video/image or use webcam to translate signs into text.</p>
+
+<div class="tabs">
+<button id="uploadTab" class="active">📹 Upload</button>
+<button id="liveTab">🎥 Webcam</button>
+</div>
+
+<div class="section">
+<label>Speech Language:</label>
+<select id="langSelect">
+<option value="en">English</option>
+<option value="hi">Hindi</option>
+<option value="ta">Tamil</option>
+</select>
+</div>
+
+<div id="uploadSection" class="section">
+<div id="dropZone">
+<p>📁 Drag & Drop or Click to Upload</p>
+<input type="file" id="mediaUpload" accept="video/*, image/*" hidden>
+</div>
+<div id="preview"></div>
+</div>
+
+<div id="liveSection" class="section hidden">
+<video id="webcam" autoplay playsinline muted width="100%"></video>
+</div>
+
+<button id="predictBtn">Translate</button>
+<div id="loader" class="hidden">⏳ Processing...</div>
+
+<div class="output">
+<h3>Predicted Text</h3>
+<div id="result">---</div>
+<div id="spelledOutput"></div>
+
+<p><strong>Hindi:</strong> <span id="resultHindi">---</span></p>
+<p><strong>Tamil:</strong> <span id="resultTamil">---</span></p>
+</div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
