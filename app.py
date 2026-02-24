@@ -139,7 +139,7 @@ def load_model_robust(path):
         return tf.keras.models.load_model(path, compile=False, custom_objects=custom_map)
 
 try:
-    model = load_model_robust(MODEL_PATH)
+    model = load_model(MODEL_PATH, compile=False)
 except Exception as e:
     print("Failed to load model:\n", e)
     raise
