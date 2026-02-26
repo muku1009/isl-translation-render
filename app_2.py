@@ -8,15 +8,15 @@ warnings.filterwarnings("ignore")
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 # ================= CONFIG =================
-BASE_DIR = r"F:\1. BE CSE AIML\SEM 8\CAPSTONE PROJECT SEM 8\CNN"
+# BASE_DIR = r"F:\1. BE CSE AIML\SEM 8\CAPSTONE PROJECT SEM 8\DL BASED ISL TRANSLATION SYSTEM"
+BASE_DIR = os.getcwd()
 
-TRAIN_ONCE = False   # 🔴 True ONLY first training
+TRAIN_ONCE = True   # 🔴 Make True ONLY first time training
 
 IMAGE_TRAIN_DIR = os.path.join(BASE_DIR, "words_2")
 IMAGE_VAL_DIR   = os.path.join(BASE_DIR, "words")
@@ -42,6 +42,7 @@ def detect_and_crop_hand(frame):
     lower = np.array([0, 20, 70])
     upper = np.array([20, 255, 255])
     mask = cv2.inRange(hsv, lower, upper)
+
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if not contours:
@@ -60,24 +61,32 @@ def build_model(num_classes):
     model = Sequential([
         Conv2D(32, (3,3), activation="relu", input_shape=(IMG_SIZE, IMG_SIZE, 3)),
         MaxPooling2D(2,2),
+
         Conv2D(64, (3,3), activation="relu"),
         MaxPooling2D(2,2),
+
         Conv2D(128, (3,3), activation="relu"),
         MaxPooling2D(2,2),
+
         Flatten(),
         Dense(128, activation="relu"),
         Dropout(0.5),
+
         Dense(num_classes, activation="softmax")
     ])
 
-    model.compile(optimizer="adam",
-                  loss="categorical_crossentropy",
-                  metrics=["accuracy"])
+    model.compile(
+        optimizer="adam",
+        loss="categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+
     return model
 
 # ================= TRAINING =================
 if TRAIN_ONCE:
-    print("🚀 Training CNN Model")
+
+    print("🚀 Training CNN Model...")
 
     datagen = ImageDataGenerator(rescale=1./255)
 
@@ -95,8 +104,9 @@ if TRAIN_ONCE:
         class_mode="categorical"
     )
 
-    labels = sorted(train_gen.class_indices.keys(), key=str)
-    json.dump(labels, open(LABELS_FILE, "w"))
+    labels = list(train_gen.class_indices.keys())
+    with open(LABELS_FILE, "w") as f:
+        json.dump(labels, f)
 
     model = build_model(len(labels))
 
@@ -107,45 +117,27 @@ if TRAIN_ONCE:
     )
 
     model.save(MODEL_PATH)
-    json.dump(history.history, open(HISTORY_FILE, "w"))
+
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history.history, f)
+
     print("✅ Training Complete")
 
-# ================= LOAD MODEL =================
-def load_model_robust(path):
-    try:
-        return tf.keras.models.load_model(path)
-    except Exception as e:
-        err = str(e)
-        # If the error refers to InputLayer/batch_shape mismatch, try standalone keras
-        if "batch_shape" in err or "InputLayer" in err:
-            try:
-                import keras as skkeras
-                return skkeras.models.load_model(path)
-            except Exception:
-                pass
-        # As a last resort define a compatible InputLayer that accepts 'batch_shape'
-        class CompatibleInputLayer(tf.keras.layers.InputLayer):
-            @classmethod
-            def from_config(cls, config):
-                if 'batch_shape' in config:
-                    config['batch_input_shape'] = tuple(config.pop('batch_shape'))
-                return super(CompatibleInputLayer, cls).from_config(config)
+# ================= LOAD MODEL SAFELY =================
+if not os.path.exists(MODEL_PATH):
+    raise Exception("❌ Model file not found! Set TRAIN_ONCE = True first.")
 
-        # map dtype policy from standalone keras to tf.keras mixed precision Policy
-        custom_map = {
-            "InputLayer": CompatibleInputLayer,
-            "DTypePolicy": tf.keras.mixed_precision.Policy
-        }
-        return tf.keras.models.load_model(path, compile=False, custom_objects=custom_map)
+if not os.path.exists(LABELS_FILE):
+    raise Exception("❌ labels.json not found! Train model first.")
 
-try:
-    model = load_model(MODEL_PATH, compile=False)
-except Exception as e:
-    print("Failed to load model:\n", e)
-    raise
+model = load_model(MODEL_PATH, compile=False)
 
-LABELS = json.load(open(LABELS_FILE))
-LABELS = {i: lbl for i, lbl in enumerate(LABELS)}
+with open(LABELS_FILE, "r") as f:
+    labels_list = json.load(f)
+
+LABELS = {i: lbl for i, lbl in enumerate(labels_list)}
+
+print("✅ Model Loaded Successfully")
 
 # ================= HELPERS =================
 def preprocess(img):
@@ -161,11 +153,13 @@ def predict_frame(img):
 def extract_video_frames(path):
     cap = cv2.VideoCapture(path)
     frames = []
+
     while len(frames) < MAX_FRAMES:
         ret, frame = cap.read()
         if not ret:
             break
         frames.append(frame)
+
     cap.release()
     return frames
 
@@ -177,30 +171,46 @@ def home():
 @app.route("/predict_image", methods=["POST"])
 def predict_image():
     file = request.files.get("file")
+
+    if file is None:
+        return jsonify({"error": "No file uploaded"})
+
     img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
     preds = predict_frame(img)
+
     idx = int(np.argmax(preds))
     return jsonify({"prediction": LABELS[idx]})
 
 @app.route("/predict_video", methods=["POST"])
 def predict_video():
     file = request.files.get("file")
+
+    if file is None:
+        return jsonify({"error": "No file uploaded"})
+
     path = os.path.join(UPLOAD_FOLDER, secure_filename(file.filename))
     file.save(path)
 
     frames = extract_video_frames(path)
+
+    if len(frames) == 0:
+        os.remove(path)
+        return jsonify({"error": "No frames extracted from video"})
+
     avg_preds = np.zeros(len(LABELS))
 
     for f in frames:
         avg_preds += predict_frame(f)
 
     avg_preds /= len(frames)
+
     idx = int(np.argmax(avg_preds))
+
     os.remove(path)
 
     return jsonify({"prediction": LABELS[idx]})
 
 # ================= MAIN =================
 if __name__ == "__main__":
-    print("APP_2 RUNNING 🚀")
+    print("🚀 APP_2 RUNNING on port 5001")
     app.run(debug=True, use_reloader=False, port=5001)
