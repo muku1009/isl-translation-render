@@ -16,7 +16,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # BASE_DIR = r"F:\1. BE CSE AIML\SEM 8\CAPSTONE PROJECT SEM 8\DL BASED ISL TRANSLATION SYSTEM"
 BASE_DIR = os.getcwd()
 
-TRAIN_ONCE = True   # 🔴 Make True ONLY first time training
+TRAIN_ONCE = False   # 🔴 Make True ONLY first time training
 
 IMAGE_TRAIN_DIR = os.path.join(BASE_DIR, "words_2")
 IMAGE_VAL_DIR   = os.path.join(BASE_DIR, "words")
