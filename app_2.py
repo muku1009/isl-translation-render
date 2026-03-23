@@ -8,29 +8,43 @@ warnings.filterwarnings("ignore")
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import load_model
+
+import gdown
 
 # ================= CONFIG =================
-# BASE_DIR = r"F:\1. BE CSE AIML\SEM 8\CAPSTONE PROJECT SEM 8\DL BASED ISL TRANSLATION SYSTEM"
 BASE_DIR = os.getcwd()
 
-TRAIN_ONCE = False   # 🔴 Make True ONLY first time training
-
-IMAGE_TRAIN_DIR = os.path.join(BASE_DIR, "words_2")
-IMAGE_VAL_DIR   = os.path.join(BASE_DIR, "words")
-
-MODEL_PATH   = os.path.join(BASE_DIR, "isl_cnn.h5")
-LABELS_FILE  = os.path.join(BASE_DIR, "labels.json")
-HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
-
+MODEL_PATH = os.path.join(BASE_DIR, "isl_cnn.h5")
+LABELS_FILE = os.path.join(BASE_DIR, "labels.json")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 IMG_SIZE = 224
-EPOCHS = 6
 MAX_FRAMES = 15
+
+# ================= DOWNLOAD MODEL =================
+if not os.path.exists(MODEL_PATH):
+    print("⬇️ Downloading model...")
+    url = "https://drive.google.com/uc?id=1SW3n0yB7zm8qM24aJyIlYUbblb6gzA8t"
+    gdown.download(url, MODEL_PATH, quiet=False)
+
+# ================= LOAD MODEL =================
+if not os.path.exists(MODEL_PATH):
+    raise Exception("❌ Model not found!")
+
+if not os.path.exists(LABELS_FILE):
+    raise Exception("❌ labels.json not found!")
+
+model = load_model(MODEL_PATH, compile=False)
+
+with open(LABELS_FILE, "r") as f:
+    labels_list = json.load(f)
+
+LABELS = {i: lbl for i, lbl in enumerate(labels_list)}
+
+print("✅ Model Loaded Successfully")
 
 # ================= FLASK =================
 app = Flask(__name__)
@@ -55,89 +69,6 @@ def detect_and_crop_hand(frame):
         return frame
 
     return frame[y:y+h, x:x+w]
-
-# ================= MODEL =================
-def build_model(num_classes):
-    model = Sequential([
-        Conv2D(32, (3,3), activation="relu", input_shape=(IMG_SIZE, IMG_SIZE, 3)),
-        MaxPooling2D(2,2),
-
-        Conv2D(64, (3,3), activation="relu"),
-        MaxPooling2D(2,2),
-
-        Conv2D(128, (3,3), activation="relu"),
-        MaxPooling2D(2,2),
-
-        Flatten(),
-        Dense(128, activation="relu"),
-        Dropout(0.5),
-
-        Dense(num_classes, activation="softmax")
-    ])
-
-    model.compile(
-        optimizer="adam",
-        loss="categorical_crossentropy",
-        metrics=["accuracy"]
-    )
-
-    return model
-
-# ================= TRAINING =================
-if TRAIN_ONCE:
-
-    print("🚀 Training CNN Model...")
-
-    datagen = ImageDataGenerator(rescale=1./255)
-
-    train_gen = datagen.flow_from_directory(
-        IMAGE_TRAIN_DIR,
-        target_size=(IMG_SIZE, IMG_SIZE),
-        batch_size=32,
-        class_mode="categorical"
-    )
-
-    val_gen = datagen.flow_from_directory(
-        IMAGE_VAL_DIR,
-        target_size=(IMG_SIZE, IMG_SIZE),
-        batch_size=32,
-        class_mode="categorical"
-    )
-
-    labels = list(train_gen.class_indices.keys())
-    with open(LABELS_FILE, "w") as f:
-        json.dump(labels, f)
-
-    model = build_model(len(labels))
-
-    history = model.fit(
-        train_gen,
-        epochs=EPOCHS,
-        validation_data=val_gen
-    )
-
-    model.save(MODEL_PATH)
-
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(history.history, f)
-
-    print("✅ Training Complete")
-
-# ================= LOAD MODEL SAFELY =================
-if not os.path.exists(MODEL_PATH):
-    raise Exception("❌ Model file not found! Set TRAIN_ONCE = True first.")
-
-if not os.path.exists(LABELS_FILE):
-    raise Exception("❌ labels.json not found! Train model first.")
-
-model = load_model(MODEL_PATH, compile=False)
-
-with open(LABELS_FILE, "r") as f:
-    labels_list = json.load(f)
-
-LABELS = {i: lbl for i, lbl in enumerate(labels_list)}
-
-print("✅ Model Loaded Successfully")
 
 # ================= HELPERS =================
 def preprocess(img):
@@ -212,5 +143,5 @@ def predict_video():
 
 # ================= MAIN =================
 if __name__ == "__main__":
-    print("🚀 APP_2 RUNNING on port 5001")
-    app.run(debug=True, use_reloader=False, port=5001)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
