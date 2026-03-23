@@ -21,7 +21,7 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-IMG_SIZE = 224
+IMG_SIZE = 128
 MAX_FRAMES = 15
 
 # ================= DOWNLOAD MODEL =================
@@ -78,7 +78,8 @@ def preprocess(img):
 
 def predict_frame(img):
     img = detect_and_crop_hand(img)
-    preds = model.predict(preprocess(img), verbose=0)[0]
+    img = preprocess(img)
+    preds = model(img, training=False).numpy()[0]   # 🔥 replace predict()
     return preds
 
 def extract_video_frames(path):
@@ -101,16 +102,35 @@ def home():
 
 @app.route("/predict_image", methods=["POST"])
 def predict_image():
-    file = request.files.get("file")
+    try:
+        print("📩 Request received")
 
-    if file is None:
-        return jsonify({"error": "No file uploaded"})
+        file = request.files.get("file")
 
-    img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
-    preds = predict_frame(img)
+        if file is None:
+            return jsonify({"error": "No file uploaded"})
 
-    idx = int(np.argmax(preds))
-    return jsonify({"prediction": LABELS[idx]})
+        file_bytes = file.read()
+        print("📦 File size:", len(file_bytes))
+
+        npimg = np.frombuffer(file_bytes, np.uint8)
+        img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return jsonify({"error": "Image decoding failed"})
+
+        print("🖼 Image shape:", img.shape)
+
+        preds = predict_frame(img)
+
+        idx = int(np.argmax(preds))
+        print("✅ Prediction done")
+
+        return jsonify({"prediction": LABELS[idx]})
+
+    except Exception as e:
+        print("❌ ERROR:", str(e))
+        return jsonify({"error": str(e)})
 
 @app.route("/predict_video", methods=["POST"])
 def predict_video():
