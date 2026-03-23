@@ -27,7 +27,7 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-IMG_SIZE = 128
+IMG_SIZE = 224
 MAX_FRAMES = 15
 
 # ================= DOWNLOAD MODEL =================
