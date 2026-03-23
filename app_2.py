@@ -1,4 +1,10 @@
 import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+
+import os
 import cv2
 import json
 import numpy as np
@@ -46,6 +52,9 @@ LABELS = {i: lbl for i, lbl in enumerate(labels_list)}
 
 print("✅ Model Loaded Successfully")
 
+import tensorflow as tf
+tf.keras.backend.clear_session()
+
 # ================= FLASK =================
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -79,7 +88,7 @@ def preprocess(img):
 def predict_frame(img):
     img = detect_and_crop_hand(img)
     img = preprocess(img)
-    preds = model(img, training=False).numpy()[0]   # 🔥 replace predict()
+    preds = model(img, training=False).numpy()[0]
     return preds
 
 def extract_video_frames(path):
